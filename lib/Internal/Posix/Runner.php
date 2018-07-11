@@ -154,7 +154,9 @@ final class Runner implements ProcessRunner
         }
 
         if (!\proc_terminate($handle->proc, 9)) { // Forcefully kill the process using SIGKILL.
-            throw new ProcessException("Terminating process failed");
+            if (\proc_get_status($handle->proc)['running']) {
+                throw new ProcessException("Terminating process failed");
+            }
         }
 
         if ($handle->status < ProcessStatus::ENDED) {
