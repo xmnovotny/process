@@ -7,11 +7,12 @@ use Amp\ByteStream\PendingReadError;
 use Amp\ByteStream\ResourceInputStream;
 use Amp\ByteStream\StreamException;
 use Amp\Deferred;
-use Amp\Failure;
 use Amp\Promise;
 use Amp\Success;
+use function Amp\Promise\await;
 
-class ProcessInputStream implements InputStream {
+class ProcessInputStream implements InputStream
+{
     /** @var Deferred */
     private $initialRead;
 
@@ -27,7 +28,8 @@ class ProcessInputStream implements InputStream {
     /** @var StreamException|null */
     private $error;
 
-    public function __construct(Promise $resourceStreamPromise) {
+    public function __construct(Promise $resourceStreamPromise)
+    {
         $resourceStreamPromise->onResolve(function ($error, $resourceStream) {
             if ($error) {
                 $this->error = new StreamException("Failed to launch process", 0, $error);
@@ -57,20 +59,15 @@ class ProcessInputStream implements InputStream {
         });
     }
 
-    /**
-     * Reads data from the stream.
-     *
-     * @return Promise Resolves with a string when new data is available or `null` if the stream has closed.
-     *
-     * @throws PendingReadError Thrown if another read operation is still pending.
-     */
-    public function read(): Promise {
+    /** @inheritdoc */
+    public function read(): ?string
+    {
         if ($this->initialRead) {
             throw new PendingReadError;
         }
 
         if ($this->error) {
-            return new Failure($this->error);
+            throw $this->error;
         }
 
         if ($this->resourceStream) {
@@ -83,10 +80,11 @@ class ProcessInputStream implements InputStream {
 
         $this->initialRead = new Deferred;
 
-        return $this->initialRead->promise();
+        return await($this->initialRead->promise());
     }
 
-    public function reference() {
+    public function reference(): void
+    {
         $this->referenced = true;
 
         if ($this->resourceStream) {
@@ -94,7 +92,8 @@ class ProcessInputStream implements InputStream {
         }
     }
 
-    public function unreference() {
+    public function unreference(): void
+    {
         $this->referenced = false;
 
         if ($this->resourceStream) {
@@ -102,7 +101,8 @@ class ProcessInputStream implements InputStream {
         }
     }
 
-    public function close() {
+    public function close(): void
+    {
         $this->shouldClose = true;
 
         if ($this->initialRead) {

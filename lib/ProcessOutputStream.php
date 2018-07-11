@@ -7,10 +7,10 @@ use Amp\ByteStream\OutputStream;
 use Amp\ByteStream\ResourceOutputStream;
 use Amp\ByteStream\StreamException;
 use Amp\Deferred;
-use Amp\Failure;
 use Amp\Promise;
 
-class ProcessOutputStream implements OutputStream {
+class ProcessOutputStream implements OutputStream
+{
     /** @var \SplQueue */
     private $queuedWrites;
 
@@ -23,26 +23,28 @@ class ProcessOutputStream implements OutputStream {
     /** @var StreamException|null */
     private $error;
 
-    public function __construct(Promise $resourceStreamPromise) {
+    public function __construct(Promise $resourceStreamPromise)
+    {
         $this->queuedWrites = new \SplQueue;
-        $resourceStreamPromise->onResolve(function ($error, $resourceStream) {
+        $resourceStreamPromise->onResolve(function (?\Throwable $error, ?ResourceOutputStream $resourceStream) {
             if ($error) {
                 $this->error = new StreamException("Failed to launch process", 0, $error);
 
                 while (!$this->queuedWrites->isEmpty()) {
-                    list(, $deferred) = $this->queuedWrites->shift();
+                    /** @var Deferred $deferred */
+                    [, $deferred] = $this->queuedWrites->shift();
                     $deferred->fail($this->error);
                 }
 
                 return;
             }
 
+            \assert($resourceStream !== null);
+
             while (!$this->queuedWrites->isEmpty()) {
-                /**
-                 * @var string $data
-                 * @var \Amp\Deferred $deferred
-                 */
-                list($data, $deferred) = $this->queuedWrites->shift();
+                /** @var string $data */
+                /** @var Deferred $deferred */
+                [$data, $deferred] = $this->queuedWrites->shift();
                 $deferred->resolve($resourceStream->write($data));
             }
 
@@ -55,13 +57,15 @@ class ProcessOutputStream implements OutputStream {
     }
 
     /** @inheritdoc */
-    public function write(string $data): Promise {
+    public function write(string $data): void
+    {
         if ($this->resourceStream) {
-            return $this->resourceStream->write($data);
+            $this->resourceStream->write($data);
+            return;
         }
 
         if ($this->error) {
-            return new Failure($this->error);
+            throw $this->error;
         }
 
         if ($this->shouldClose) {
@@ -71,17 +75,19 @@ class ProcessOutputStream implements OutputStream {
         $deferred = new Deferred;
         $this->queuedWrites->push([$data, $deferred]);
 
-        return $deferred->promise();
+        Promise\await($deferred->promise());
     }
 
     /** @inheritdoc */
-    public function end(string $finalData = ""): Promise {
+    public function end(string $finalData = ""): void
+    {
         if ($this->resourceStream) {
-            return $this->resourceStream->end($finalData);
+            $this->resourceStream->end($finalData);
+            return;
         }
 
         if ($this->error) {
-            return new Failure($this->error);
+            throw $this->error;
         }
 
         if ($this->shouldClose) {
@@ -93,10 +99,11 @@ class ProcessOutputStream implements OutputStream {
 
         $this->shouldClose = true;
 
-        return $deferred->promise();
+        Promise\await($deferred->promise());
     }
 
-    public function close() {
+    public function close(): void
+    {
         $this->shouldClose = true;
 
         if ($this->resourceStream) {
@@ -104,7 +111,8 @@ class ProcessOutputStream implements OutputStream {
         } elseif (!$this->queuedWrites->isEmpty()) {
             $error = new ClosedException("Stream closed.");
             do {
-                list(, $deferred) = $this->queuedWrites->shift();
+                /** @var Deferred $deferred */
+                [, $deferred] = $this->queuedWrites->shift();
                 $deferred->fail($error);
             } while (!$this->queuedWrites->isEmpty());
         }
