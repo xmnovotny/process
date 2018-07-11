@@ -75,7 +75,7 @@ class ProcessInputStream implements InputStream
         }
 
         if ($this->shouldClose) {
-            return new Success; // Resolve reads on closed streams with null.
+            return null; // Resolve reads on closed streams with null.
         }
 
         $this->initialRead = new Deferred;
