@@ -44,6 +44,7 @@ class ProcessTest extends TestCase
         /** @noinspection PhpUnhandledExceptionInspection */
         $process->start();
 
+        $process->getStdout()->read();
         $code = $process->join();
 
         $this->assertSame(42, $code);

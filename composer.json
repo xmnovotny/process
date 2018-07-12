@@ -3,7 +3,7 @@
     "homepage": "https://github.com/amphp/process",
     "description": "Asynchronous process manager.",
     "require": {
-        "php": ">=7",
+        "php": ">=7.2",
         "amphp/amp": "dev-ext-task",
         "amphp/byte-stream": "dev-ext-task"
     },

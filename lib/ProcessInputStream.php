@@ -53,6 +53,9 @@ class ProcessInputStream implements InputStream
             if ($this->shouldClose) {
                 if ($this->resourceStream->getResource()) {
                     $this->buffer .= \stream_get_contents($this->resourceStream->getResource());
+                    if ($this->buffer === "") {
+                        $this->buffer = null;
+                    }
                 }
 
                 $this->resourceStream->close();
@@ -125,8 +128,11 @@ class ProcessInputStream implements InputStream
     {
         $this->shouldClose = true;
 
-        if ($this->resourceStream->getResource()) {
+        if ($this->resourceStream && $this->resourceStream->getResource()) {
             $this->buffer .= \stream_get_contents($this->resourceStream->getResource());
+            if ($this->buffer === "") {
+                $this->buffer = null;
+            }
         }
 
         if ($this->initialRead) {
