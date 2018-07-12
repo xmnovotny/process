@@ -4,6 +4,7 @@ namespace Amp\Process\Internal\Posix;
 
 use Amp\Deferred;
 use Amp\Process\Internal\ProcessHandle;
+use Amp\Promise;
 
 /** @internal */
 final class Handle extends ProcessHandle

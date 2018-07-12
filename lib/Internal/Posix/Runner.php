@@ -44,7 +44,8 @@ final class Runner implements ProcessRunner
 
         $pid = \rtrim(@\fgets($stream));
 
-        /** @var $deferreds Deferred[] */
+        /** @var Handle $handle */
+        /** @var Deferred[] $deferreds */
         list($handle, $pipes, $deferreds) = $data;
 
         if (!$pid || !\is_numeric($pid)) {
@@ -67,8 +68,44 @@ final class Runner implements ProcessRunner
         $deferreds[1]->resolve($pipes[1]);
         $deferreds[2]->resolve($pipes[2]);
 
+        if ("" !== $exitCode = \rtrim(@\fgets($stream))) {
+            $handle->status = ProcessStatus::ENDED;
+            $handle->joinDeferred->resolve((int) $exitCode);
+
+            self::free($handle);
+
+            return;
+        }
+
         if ($handle->extraDataPipeWatcher !== null) {
             Loop::enable($handle->extraDataPipeWatcher);
+        }
+    }
+
+    private static function free(Handle $handle)
+    {
+        /** @var Handle $handle */
+        if ($handle->extraDataPipeWatcher !== null) {
+            Loop::cancel($handle->extraDataPipeWatcher);
+            $handle->extraDataPipeWatcher = null;
+        }
+
+        /** @var Handle $handle */
+        if ($handle->extraDataPipeStartWatcher !== null) {
+            Loop::cancel($handle->extraDataPipeStartWatcher);
+            $handle->extraDataPipeStartWatcher = null;
+        }
+
+        if (\is_resource($handle->extraDataPipe)) {
+            \fclose($handle->extraDataPipe);
+        }
+
+        $handle->stdin->close();
+        $handle->stdout->close();
+        $handle->stderr->close();
+
+        if (\is_resource($handle->proc)) {
+            \proc_close($handle->proc);
         }
     }
 
@@ -164,7 +201,7 @@ final class Runner implements ProcessRunner
             $handle->joinDeferred->fail(new ProcessException("The process was killed"));
         }
 
-        $this->free($handle);
+        self::free($handle);
     }
 
     /** @inheritdoc */
@@ -189,33 +226,6 @@ final class Runner implements ProcessRunner
             }
         }
 
-        $this->free($handle);
-    }
-
-    private function free(Handle $handle)
-    {
-        /** @var Handle $handle */
-        if ($handle->extraDataPipeWatcher !== null) {
-            Loop::cancel($handle->extraDataPipeWatcher);
-            $handle->extraDataPipeWatcher = null;
-        }
-
-        /** @var Handle $handle */
-        if ($handle->extraDataPipeStartWatcher !== null) {
-            Loop::cancel($handle->extraDataPipeStartWatcher);
-            $handle->extraDataPipeStartWatcher = null;
-        }
-
-        if (\is_resource($handle->extraDataPipe)) {
-            \fclose($handle->extraDataPipe);
-        }
-
-        $handle->stdin->close();
-        $handle->stdout->close();
-        $handle->stderr->close();
-
-        if (\is_resource($handle->proc)) {
-            \proc_close($handle->proc);
-        }
+        self::free($handle);
     }
 }

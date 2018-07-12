@@ -28,6 +28,9 @@ class ProcessInputStream implements InputStream
     /** @var StreamException|null */
     private $error;
 
+    /** @var string|null */
+    private $buffer;
+
     public function __construct(Promise $resourceStreamPromise)
     {
         $resourceStreamPromise->onResolve(function ($error, $resourceStream) {
@@ -48,13 +51,24 @@ class ProcessInputStream implements InputStream
             }
 
             if ($this->shouldClose) {
+                if ($this->resourceStream->getResource()) {
+                    $this->buffer .= \stream_get_contents($this->resourceStream->getResource());
+                }
+
                 $this->resourceStream->close();
             }
 
             if ($this->initialRead) {
                 $initialRead = $this->initialRead;
                 $this->initialRead = null;
-                $initialRead->resolve($this->shouldClose ? null : $this->resourceStream->read());
+
+                if ($this->buffer !== null) {
+                    $buffer = $this->buffer;
+                    $this->buffer = null;
+                    $initialRead->resolve($buffer);
+                } else {
+                    $initialRead->resolve($this->shouldClose ? null : $this->resourceStream->read());
+                }
             }
         });
     }
@@ -64,6 +78,12 @@ class ProcessInputStream implements InputStream
     {
         if ($this->initialRead) {
             throw new PendingReadError;
+        }
+
+        if ($this->buffer !== null) {
+            $buffer = $this->buffer;
+            $this->buffer = null;
+            return $buffer;
         }
 
         if ($this->error) {
@@ -105,10 +125,21 @@ class ProcessInputStream implements InputStream
     {
         $this->shouldClose = true;
 
+        if ($this->resourceStream->getResource()) {
+            $this->buffer .= \stream_get_contents($this->resourceStream->getResource());
+        }
+
         if ($this->initialRead) {
             $initialRead = $this->initialRead;
             $this->initialRead = null;
-            $initialRead->resolve();
+
+            if ($this->buffer !== null) {
+                $buffer = $this->buffer;
+                $this->buffer = null;
+                $initialRead->resolve($buffer);
+            } else {
+                $initialRead->resolve(null);
+            }
         }
 
         if ($this->resourceStream) {
