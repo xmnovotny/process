@@ -40,11 +40,11 @@ class ProcessTest extends TestCase
 
     public function testExecuteResolvesToExitCode(): void
     {
-        $process = new Process(\DIRECTORY_SEPARATOR === "\\" ? "cmd /c exit 42" : "exit 42");
+        $process = new Process(\DIRECTORY_SEPARATOR === "\\" ? "cmd /c exit 42" : "echo 'foo'; sleep 2; exit 42");
         /** @noinspection PhpUnhandledExceptionInspection */
         $process->start();
 
-        $process->getStdout()->read();
+        Task::async(function () use ($process) { $process->getStdout()->read(); });
         $code = $process->join();
 
         $this->assertSame(42, $code);
