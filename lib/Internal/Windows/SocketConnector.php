@@ -14,9 +14,10 @@ use Amp\Process\ProcessException;
  */
 final class SocketConnector
 {
-    const SERVER_SOCKET_URI = 'tcp://127.0.0.1:0';
-    const SECURITY_TOKEN_SIZE = 16;
-    const CONNECT_TIMEOUT = 1000;
+    public const SECURITY_TOKEN_SIZE = 16;
+
+    private const SERVER_SOCKET_URI = 'tcp://127.0.0.1:0';
+    private const CONNECT_TIMEOUT = 1000;
 
     /** @var resource */
     private $server;
@@ -46,13 +47,13 @@ final class SocketConnector
             throw new \Error("Failed to set server socket to non-blocking mode");
         }
 
-        list($this->address, $this->port) = \explode(':', \stream_socket_get_name($this->server, false));
+        [$this->address, $this->port] = \explode(':', \stream_socket_get_name($this->server, false));
         $this->port = (int) $this->port;
 
         Loop::unreference(Loop::onReadable($this->server, [$this, 'onServerSocketReadable']));
     }
 
-    private function failClientHandshake($socket, int $code)
+    private function failClientHandshake($socket, int $code): void
     {
         \fwrite($socket, \chr(SignalCode::HANDSHAKE_ACK) . \chr($code));
         \fclose($socket);
@@ -60,7 +61,7 @@ final class SocketConnector
         unset($this->pendingClients[(int) $socket]);
     }
 
-    public function failHandleStart(Handle $handle, string $message, ...$args)
+    public function failHandleStart(Handle $handle, string $message, ...$args): void
     {
         Loop::cancel($handle->connectTimeoutWatcher);
 
@@ -92,7 +93,7 @@ final class SocketConnector
      *
      * @return string|null
      */
-    private function readDataFromPendingClient($socket, int $length, PendingSocketClient $state)
+    private function readDataFromPendingClient($socket, int $length, PendingSocketClient $state): ?string
     {
         $data = \fread($socket, $length);
 
@@ -114,7 +115,7 @@ final class SocketConnector
         return $data;
     }
 
-    public function onReadableHandshake($watcher, $socket)
+    public function onReadableHandshake($watcher, $socket): void
     {
         $socketId = (int) $socket;
         $pendingClient = $this->pendingClients[$socketId];
@@ -175,7 +176,7 @@ final class SocketConnector
         $pendingClient->readWatcher = Loop::onReadable($socket, [$this, 'onReadableHandshakeAck']);
     }
 
-    public function onReadableHandshakeAck($watcher, $socket)
+    public function onReadableHandshakeAck($watcher, $socket): void
     {
         $socketId = (int) $socket;
         $pendingClient = $this->pendingClients[$socketId];
@@ -224,7 +225,7 @@ final class SocketConnector
         }
     }
 
-    public function onReadableChildPid($watcher, $socket, Handle $handle)
+    public function onReadableChildPid($watcher, $socket, Handle $handle): void
     {
         $data = \fread($socket, 5);
 
@@ -272,7 +273,7 @@ final class SocketConnector
         unset($this->pendingProcesses[$handle->wrapperPid]);
     }
 
-    public function onReadableExitCode($watcher, $socket, Handle $handle)
+    public function onReadableExitCode($watcher, $socket, Handle $handle): void
     {
         $data = \fread($socket, 5);
 
@@ -304,9 +305,18 @@ final class SocketConnector
 
         $handle->status = ProcessStatus::ENDED;
         $handle->joinDeferred->resolve($packet['code']);
-        $handle->stdin->close();
-        $handle->stdout->close();
-        $handle->stderr->close();
+
+        if ($handle->stdin !== null) {
+            $handle->stdin->close();
+        }
+
+        if ($handle->stdout !== null) {
+            $handle->stdout->close();
+        }
+
+        if ($handle->stderr !== null) {
+            $handle->stderr->close();
+        }
 
         // Explicitly \fclose() sockets, as resource streams shut only one side down.
         foreach ($handle->sockets as $sock) {
@@ -314,7 +324,7 @@ final class SocketConnector
         }
     }
 
-    public function onClientSocketConnectTimeout($watcher, $socket)
+    public function onClientSocketConnectTimeout($watcher, $socket): void
     {
         $id = (int) $socket;
 
@@ -324,7 +334,7 @@ final class SocketConnector
         \fclose($socket);
     }
 
-    public function onServerSocketReadable()
+    public function onServerSocketReadable(): void
     {
         $socket = \stream_socket_accept($this->server);
 
@@ -339,7 +349,7 @@ final class SocketConnector
         $this->pendingClients[(int) $socket] = $pendingClient;
     }
 
-    public function onProcessConnectTimeout($watcher, Handle $handle)
+    public function onProcessConnectTimeout($watcher, Handle $handle): void
     {
         $running = \is_resource($handle->proc) && \proc_get_status($handle->proc)['running'];
 
@@ -364,7 +374,7 @@ final class SocketConnector
         $handle->joinDeferred->fail($error);
     }
 
-    public function registerPendingProcess(Handle $handle)
+    public function registerPendingProcess(Handle $handle): void
     {
         // Use Loop::defer() to start the timeout only after the loop has ticked once. This prevents issues with many
         // things started at once, see https://github.com/amphp/process/issues/21.

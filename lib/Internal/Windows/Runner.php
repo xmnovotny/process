@@ -2,7 +2,6 @@
 
 namespace Amp\Process\Internal\Windows;
 
-use Amp\Deferred;
 use Amp\Loop;
 use Amp\Process\Internal\ProcessHandle;
 use Amp\Process\Internal\ProcessRunner;
@@ -10,7 +9,8 @@ use Amp\Process\Internal\ProcessStatus;
 use Amp\Process\ProcessException;
 use Amp\Process\ProcessInputStream;
 use Amp\Process\ProcessOutputStream;
-use Amp\Promise;
+use Concurrent\Deferred;
+use Concurrent\Task;
 use const Amp\Process\BIN_DIR;
 
 /**
@@ -19,14 +19,14 @@ use const Amp\Process\BIN_DIR;
  */
 final class Runner implements ProcessRunner
 {
-    const FD_SPEC = [
+    private const FD_SPEC = [
         ["pipe", "r"], // stdin
         ["pipe", "w"], // stdout
         ["pipe", "w"], // stderr
         ["pipe", "w"], // exit code pipe
     ];
 
-    const WRAPPER_EXE_PATH = PHP_INT_SIZE === 8
+    private const WRAPPER_EXE_PATH = PHP_INT_SIZE === 8
         ? BIN_DIR . '\\windows\\ProcessWrapper64.exe'
         : BIN_DIR . '\\windows\\ProcessWrapper.exe';
 
@@ -118,23 +118,24 @@ final class Runner implements ProcessRunner
 
         $stdinDeferred = new Deferred;
         $handle->stdioDeferreds[] = $stdinDeferred;
-        $handle->stdin = new ProcessOutputStream($stdinDeferred->promise());
 
         $stdoutDeferred = new Deferred;
         $handle->stdioDeferreds[] = $stdoutDeferred;
-        $handle->stdout = new ProcessInputStream($stdoutDeferred->promise());
 
         $stderrDeferred = new Deferred;
         $handle->stdioDeferreds[] = $stderrDeferred;
-        $handle->stderr = new ProcessInputStream($stderrDeferred->promise());
 
         $this->socketConnector->registerPendingProcess($handle);
+
+        $handle->stdin = new ProcessOutputStream(Task::await($stdinDeferred->awaitable()));
+        $handle->stdout = new ProcessInputStream(Task::await($stdoutDeferred->awaitable()));
+        $handle->stderr = new ProcessInputStream(Task::await($stderrDeferred->awaitable()));
 
         return $handle;
     }
 
     /** @inheritdoc */
-    public function join(ProcessHandle $handle): Promise
+    public function join(ProcessHandle $handle): int
     {
         /** @var Handle $handle */
         $handle->exitCodeRequested = true;
@@ -143,11 +144,11 @@ final class Runner implements ProcessRunner
             Loop::reference($handle->exitCodeWatcher);
         }
 
-        return $handle->joinDeferred->promise();
+        return Task::await($handle->joinDeferred->awaitable());
     }
 
     /** @inheritdoc */
-    public function kill(ProcessHandle $handle)
+    public function kill(ProcessHandle $handle): void
     {
         /** @var Handle $handle */
         // todo: send a signal to the wrapper to kill the child instead?
@@ -180,13 +181,13 @@ final class Runner implements ProcessRunner
     }
 
     /** @inheritdoc */
-    public function signal(ProcessHandle $handle, int $signo)
+    public function signal(ProcessHandle $handle, int $signo): void
     {
         throw new ProcessException('Signals are not supported on Windows');
     }
 
     /** @inheritdoc */
-    public function destroy(ProcessHandle $handle)
+    public function destroy(ProcessHandle $handle): void
     {
         /** @var Handle $handle */
         if ($handle->status < ProcessStatus::ENDED && \is_resource($handle->proc)) {
@@ -201,7 +202,7 @@ final class Runner implements ProcessRunner
         $this->free($handle);
     }
 
-    private function free(Handle $handle)
+    private function free(Handle $handle): void
     {
         if ($handle->childPidWatcher !== null) {
             Loop::cancel($handle->childPidWatcher);
@@ -213,9 +214,17 @@ final class Runner implements ProcessRunner
             $handle->exitCodeWatcher = null;
         }
 
-        $handle->stdin->close();
-        $handle->stdout->close();
-        $handle->stderr->close();
+        if ($handle->stdin !== null) {
+            $handle->stdin->close();
+        }
+
+        if ($handle->stdout !== null) {
+            $handle->stdout->close();
+        }
+
+        if ($handle->stderr !== null) {
+            $handle->stderr->close();
+        }
 
         foreach ($handle->sockets as $socket) {
             @\fclose($socket);

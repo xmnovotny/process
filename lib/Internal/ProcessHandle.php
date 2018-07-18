@@ -2,10 +2,10 @@
 
 namespace Amp\Process\Internal;
 
-use Amp\Deferred;
 use Amp\Process\ProcessInputStream;
 use Amp\Process\ProcessOutputStream;
 use Amp\Struct;
+use Concurrent\Deferred;
 
 abstract class ProcessHandle
 {

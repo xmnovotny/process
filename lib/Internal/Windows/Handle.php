@@ -2,8 +2,8 @@
 
 namespace Amp\Process\Internal\Windows;
 
-use Amp\Deferred;
 use Amp\Process\Internal\ProcessHandle;
+use Concurrent\Deferred;
 
 /**
  * @internal

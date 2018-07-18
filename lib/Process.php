@@ -8,7 +8,7 @@ use Amp\Process\Internal\ProcessHandle;
 use Amp\Process\Internal\ProcessRunner;
 use Amp\Process\Internal\ProcessStatus;
 use Amp\Process\Internal\Windows\Runner as WindowsProcessRunner;
-use Amp\Promise;
+use Concurrent\Task;
 
 class Process
 {
@@ -115,7 +115,7 @@ class Process
             throw new StatusError("Process has not been started.");
         }
 
-        return Promise\await($this->processRunner->join($this->handle));
+        return $this->processRunner->join($this->handle);
     }
 
     /**
@@ -163,7 +163,7 @@ class Process
             throw new StatusError("Process has not been started.");
         }
 
-        return Promise\await($this->handle->pidDeferred->promise());
+        return Task::await($this->handle->pidDeferred->awaitable());
     }
 
     /**
