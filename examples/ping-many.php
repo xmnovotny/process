@@ -2,35 +2,35 @@
 
 include dirname(__DIR__) . "/vendor/autoload.php";
 
+use Amp\ByteStream\ResourceOutputStream;
 use Amp\Process\Process;
-use function Amp\Promise\all;
+use Concurrent\Task;
 
-function show_process_output(Process $process): \Generator {
-    $stream = $process->getStdout();
+$stdout = new ResourceOutputStream(STDOUT);
 
-    while (null !== $chunk = yield $stream->read()) {
-        echo $chunk;
-    }
+function show_process_output(Process $process): void
+{
+    global $stdout;
 
-    $code = yield $process->join();
-    $pid = yield $process->getPid();
+    Amp\ByteStream\pipe($process->getStdout(), $stdout);
 
-    echo "Process {$pid} exited with {$code}\n";
+    $pid = $process->getPid();
+    $exitCode = $process->join();
+
+    $stdout->write("Process {$pid} exited with {$exitCode}" . PHP_EOL);
 }
 
-Amp\Loop::run(function () {
-    $hosts = ['8.8.8.8', '8.8.4.4', 'google.com', 'stackoverflow.com', 'github.com'];
+$hosts = ['8.8.8.8', '8.8.4.4', 'google.com', 'stackoverflow.com', 'github.com'];
 
-    $promises = [];
+foreach ($hosts as $host) {
+    $command = \DIRECTORY_SEPARATOR === "\\"
+        ? "ping -n 5 {$host}"
+        : "ping -c 5 {$host}";
 
-    foreach ($hosts as $host) {
-        $command = \DIRECTORY_SEPARATOR === "\\"
-            ? "ping -n 5 {$host}"
-            : "ping -c 5 {$host}";
-        $process = new Process($command);
-        $process->start();
-        $promises[] = new Amp\Coroutine(show_process_output($process));
-    }
+    $process = new Process($command);
+    $process->start();
 
-    yield all($promises);
-});
+    Task::async(function () use ($process) {
+        show_process_output($process);
+    });
+}

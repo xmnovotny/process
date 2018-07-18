@@ -27,6 +27,7 @@ class ProcessInputStream implements InputStream
             return $buffer;
         }
 
+        // FIXME: If we read() here and close() during the pending read, things break
         return $this->resourceStream->read();
     }
 

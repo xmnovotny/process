@@ -2,18 +2,17 @@
 
 include dirname(__DIR__) . "/vendor/autoload.php";
 
-use Amp\ByteStream\Message;
+use Amp\ByteStream\ResourceOutputStream;
 use Amp\Process\Process;
 
-Amp\Loop::run(function () {
-    // "echo" is a shell internal command on Windows and doesn't work.
-    $command = DIRECTORY_SEPARATOR === "\\" ? "cmd /c echo Hello World!" : "echo 'Hello, world!'";
+// "echo" is a shell internal command on Windows and doesn't work.
+$command = DIRECTORY_SEPARATOR === "\\" ? "cmd /c echo Hello World!" : "echo 'Hello, world!'";
 
-    $process = new Process($command);
-    $process->start();
+$process = new Process($command);
+$process->start();
 
-    echo yield new Message($process->getStdout());
+$stdout = new ResourceOutputStream(STDOUT);
+Amp\ByteStream\pipe($process->getStdout(), $stdout);
 
-    $code = yield $process->join();
-    echo "Process exited with {$code}.\n";
-});
+$exitCode = $process->join();
+echo "Process exited with {$exitCode}." . PHP_EOL;
