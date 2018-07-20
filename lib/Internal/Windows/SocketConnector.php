@@ -306,21 +306,8 @@ final class SocketConnector
         $handle->status = ProcessStatus::ENDED;
         $handle->joinDeferred->resolve($packet['code']);
 
-        if ($handle->stdin !== null) {
-            $handle->stdin->close();
-        }
-
-        if ($handle->stdout !== null) {
-            $handle->stdout->close();
-        }
-
-        if ($handle->stderr !== null) {
-            $handle->stderr->close();
-        }
-
-        // Explicitly \fclose() sockets, as resource streams shut only one side down.
-        foreach ($handle->sockets as $sock) {
-            @\fclose($sock);
+        if (--$handle->openPipes === 0) {
+            Runner::free($handle);
         }
     }
 
@@ -357,19 +344,11 @@ final class SocketConnector
         if (!$running) {
             $error = \stream_get_contents($handle->wrapperStderrPipe);
         }
-        $error = $error ?: 'Process did not connect to server before timeout elapsed';
 
-        foreach ($handle->sockets as $socket) {
-            \fclose($socket);
-        }
-
-        $error = new ProcessException(\trim($error));
+        $error = new ProcessException(\trim($error ?: 'Process did not connect to server before timeout elapsed'));
         foreach ($handle->stdioDeferreds as $deferred) {
             $deferred->fail($error);
         }
-
-        \fclose($handle->wrapperStderrPipe);
-        \proc_close($handle->proc);
 
         $handle->joinDeferred->fail($error);
     }

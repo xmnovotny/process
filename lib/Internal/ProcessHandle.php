@@ -2,10 +2,9 @@
 
 namespace Amp\Process\Internal;
 
-use Amp\Process\OutputStream;
 use Amp\Process\InputStream;
+use Amp\Process\OutputStream;
 use Amp\Struct;
-use Concurrent\Deferred;
 
 abstract class ProcessHandle
 {
@@ -20,9 +19,12 @@ abstract class ProcessHandle
     /** @var OutputStream */
     public $stderr;
 
-    /** @var Deferred */
-    public $pidDeferred;
+    /** @var int */
+    public $pid;
 
     /** @var int */
     public $status = ProcessStatus::STARTING;
+
+    /** @var int */
+    public $openPipes = 0;
 }

@@ -20,6 +20,9 @@ final class Handle extends ProcessHandle
     /** @var Deferred */
     public $joinDeferred;
 
+    /** @var Deferred */
+    public $pidDeferred;
+
     /** @var string */
     public $exitCodeWatcher;
 

@@ -3,12 +3,11 @@
 namespace Amp\Process\Internal\Windows;
 
 use Amp\Loop;
+use Amp\Process\InputStream;
 use Amp\Process\Internal\ProcessHandle;
 use Amp\Process\Internal\ProcessRunner;
-use Amp\Process\Internal\ProcessStatus;
-use Amp\Process\ProcessException;
 use Amp\Process\OutputStream;
-use Amp\Process\InputStream;
+use Amp\Process\ProcessException;
 use Concurrent\Deferred;
 use Concurrent\Task;
 use const Amp\Process\BIN_DIR;
@@ -127,9 +126,23 @@ final class Runner implements ProcessRunner
 
         $this->socketConnector->registerPendingProcess($handle);
 
-        $handle->stdin = new InputStream(Task::await($stdinDeferred->awaitable()));
-        $handle->stdout = new OutputStream(Task::await($stdoutDeferred->awaitable()));
-        $handle->stderr = new OutputStream(Task::await($stderrDeferred->awaitable()));
+        $handle->openPipes = 4;
+        $closeCallback = static function () use ($handle) {
+            if (--$handle->openPipes === 0) {
+                self::free($handle);
+            }
+        };
+
+        try {
+            $handle->pid = Task::await($handle->pidDeferred->awaitable());
+            $handle->stdin = new InputStream(Task::await($stdinDeferred->awaitable()), $closeCallback);
+            $handle->stdout = new OutputStream(Task::await($stdoutDeferred->awaitable()), $closeCallback);
+            $handle->stderr = new OutputStream(Task::await($stderrDeferred->awaitable()), $closeCallback);
+        } catch (\Throwable $e) {
+            self::free($handle);
+
+            throw $e;
+        }
 
         return $handle;
     }
@@ -151,33 +164,9 @@ final class Runner implements ProcessRunner
     public function kill(ProcessHandle $handle): void
     {
         /** @var Handle $handle */
-        // todo: send a signal to the wrapper to kill the child instead?
-        if (!\proc_terminate($handle->proc)) {
-            throw new ProcessException("Terminating process failed");
+        if (!\proc_terminate($handle->proc, 9) && \proc_get_status($handle->proc)['running']) {
+            throw new ProcessException("Terminating process (pid = {$handle->pid}) failed.");
         }
-
-        $failStart = false;
-
-        if ($handle->childPidWatcher !== null) {
-            Loop::cancel($handle->childPidWatcher);
-            $handle->childPidWatcher = null;
-            $handle->pidDeferred->fail(new ProcessException("The process was killed"));
-            $failStart = true;
-        }
-
-        if ($handle->exitCodeWatcher !== null) {
-            Loop::cancel($handle->exitCodeWatcher);
-            $handle->exitCodeWatcher = null;
-            $handle->joinDeferred->fail(new ProcessException("The process was killed"));
-        }
-
-        $handle->status = ProcessStatus::ENDED;
-
-        if ($failStart || $handle->stdioDeferreds) {
-            $this->socketConnector->failHandleStart($handle, "The process was killed");
-        }
-
-        $this->free($handle);
     }
 
     /** @inheritdoc */
@@ -186,23 +175,7 @@ final class Runner implements ProcessRunner
         throw new ProcessException('Signals are not supported on Windows');
     }
 
-    /** @inheritdoc */
-    public function destroy(ProcessHandle $handle): void
-    {
-        /** @var Handle $handle */
-        if ($handle->status < ProcessStatus::ENDED && \is_resource($handle->proc)) {
-            try {
-                $this->kill($handle);
-                return;
-            } catch (ProcessException $e) {
-                // ignore
-            }
-        }
-
-        $this->free($handle);
-    }
-
-    private function free(Handle $handle): void
+    public static function free(Handle $handle): void
     {
         if ($handle->childPidWatcher !== null) {
             Loop::cancel($handle->childPidWatcher);

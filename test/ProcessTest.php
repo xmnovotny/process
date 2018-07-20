@@ -4,6 +4,7 @@ namespace Amp\Process\Test;
 
 use Amp\ByteStream\Message;
 use Amp\Process\Process;
+use Amp\Process\ProcessException;
 use Concurrent\Task;
 use PHPUnit\Framework\TestCase;
 use function Amp\delay;
@@ -157,22 +158,17 @@ class ProcessTest extends TestCase
         clone $process;
     }
 
-    /**
-     * @expectedException \Amp\Process\ProcessException
-     * @expectedExceptionMessage The process was killed
-     */
     public function testKillImmediately(): void
     {
+        $this->expectException(ProcessException::class);
+        $this->expectExceptionMessage("ended unexpectedly");
+
         $process = new Process(self::CMD_PROCESS_SLOW);
         $process->start();
         $process->kill();
         $process->join();
     }
 
-    /**
-     * @expectedException \Amp\Process\ProcessException
-     * @expectedExceptionMessage The process was killed
-     */
     public function testKillThenReadStdout(): void
     {
         $process = new Process(self::CMD_PROCESS_SLOW);
@@ -184,9 +180,11 @@ class ProcessTest extends TestCase
 
         $this->assertNull($process->getStdout()->read());
 
+        $this->expectException(ProcessException::class);
+        $this->expectExceptionMessage("ended unexpectedly");
+
         $process->join();
     }
-
 
     /**
      * @expectedException \Amp\Process\StatusError

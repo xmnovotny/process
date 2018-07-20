@@ -10,24 +10,23 @@ class OutputStream implements InputStream
     /** @var ResourceInputStream */
     private $resourceStream;
 
-    /** @var string|null */
-    private $buffer;
+    /** @var callable|null */
+    private $closeCallback;
 
-    public function __construct(ResourceInputStream $resourceStream)
+    public function __construct(ResourceInputStream $resourceStream, callable $closeCallback)
     {
         $this->resourceStream = $resourceStream;
+        $this->closeCallback = $closeCallback;
+    }
+
+    public function __destruct()
+    {
+        $this->close();
     }
 
     /** @inheritdoc */
     public function read(): ?string
     {
-        if ($this->buffer !== null) {
-            $buffer = $this->buffer;
-            $this->buffer = null;
-            return $buffer;
-        }
-
-        // FIXME: If we read() here and close() during the pending read, things break
         return $this->resourceStream->read();
     }
 
@@ -43,13 +42,10 @@ class OutputStream implements InputStream
 
     public function close(): void
     {
-        if ($this->resourceStream->getResource()) {
-            $this->buffer .= @\stream_get_contents($this->resourceStream->getResource());
-            if ($this->buffer === "") {
-                $this->buffer = null;
-            }
-        }
-
         $this->resourceStream->close();
+        if ($this->closeCallback !== null) {
+            ($this->closeCallback)();
+            $this->closeCallback = null;
+        }
     }
 }

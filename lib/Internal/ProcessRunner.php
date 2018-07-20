@@ -49,11 +49,4 @@ interface ProcessRunner
      * @throws ProcessException If sending the signal fails.
      */
     public function signal(ProcessHandle $handle, int $signo): void;
-
-    /**
-     * Release all resources held by the process handle.
-     *
-     * @param ProcessHandle $handle The process descriptor.
-     */
-    public function destroy(ProcessHandle $handle): void;
 }

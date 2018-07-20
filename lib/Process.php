@@ -72,16 +72,6 @@ class Process
         }
     }
 
-    /**
-     * Stops the process if it is still running.
-     */
-    public function __destruct()
-    {
-        if ($this->handle !== null) {
-            $this->processRunner->destroy($this->handle);
-        }
-    }
-
     public function __clone()
     {
         throw new \Error("Cloning is not allowed!");

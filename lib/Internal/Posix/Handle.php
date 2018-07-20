@@ -10,9 +10,9 @@ final class Handle extends ProcessHandle
 {
     public function __construct()
     {
-        $this->pidDeferred = new Deferred;
         $this->joinDeferred = new Deferred;
         $this->originalParentPid = \getmypid();
+        $this->openPipes = 4;
     }
 
     /** @var Deferred */
