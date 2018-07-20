@@ -19,10 +19,10 @@ class Process
     private $command;
 
     /** @var string */
-    private $cwd = "";
+    private $cwd;
 
     /** @var array */
-    private $env = [];
+    private $env;
 
     /** @var array */
     private $options;
@@ -93,7 +93,7 @@ class Process
      * @throws StatusError If the process has already been started.
      * @throws ProcessException If starting the process fails.
      */
-    public function start()
+    public function start(): void
     {
         if ($this->handle) {
             throw new StatusError("Process has already been started.");
@@ -108,6 +108,7 @@ class Process
      * @return int Succeeds with process exit code or fails with a ProcessException if the process is killed.
      *
      * @throws StatusError If the process has already been started.
+     * @throws ProcessException If the process is killed.
      */
     public function join(): int
     {
