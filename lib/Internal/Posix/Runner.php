@@ -9,8 +9,8 @@ use Amp\Process\Internal\ProcessHandle;
 use Amp\Process\Internal\ProcessRunner;
 use Amp\Process\Internal\ProcessStatus;
 use Amp\Process\ProcessException;
-use Amp\Process\ProcessInputStream;
-use Amp\Process\ProcessOutputStream;
+use Amp\Process\OutputStream;
+use Amp\Process\InputStream;
 use Concurrent\Deferred;
 use Concurrent\Task;
 
@@ -165,9 +165,9 @@ final class Runner implements ProcessRunner
         Loop::unreference($handle->extraDataPipeWatcher);
         Loop::disable($handle->extraDataPipeWatcher);
 
-        $handle->stdin = new ProcessOutputStream(Task::await($stdinDeferred->awaitable()));
-        $handle->stdout = new ProcessInputStream(Task::await($stdoutDeferred->awaitable()));
-        $handle->stderr = new ProcessInputStream(Task::await($stderrDeferred->awaitable()));
+        $handle->stdin = new InputStream(Task::await($stdinDeferred->awaitable()));
+        $handle->stdout = new OutputStream(Task::await($stdoutDeferred->awaitable()));
+        $handle->stderr = new OutputStream(Task::await($stderrDeferred->awaitable()));
 
         return $handle;
     }

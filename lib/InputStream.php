@@ -5,7 +5,7 @@ namespace Amp\Process;
 use Amp\ByteStream\OutputStream;
 use Amp\ByteStream\ResourceOutputStream;
 
-class ProcessOutputStream implements OutputStream
+class InputStream implements OutputStream
 {
     /** @var ResourceOutputStream */
     private $resourceStream;

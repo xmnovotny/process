@@ -223,9 +223,9 @@ class Process
     /**
      * Gets the process input stream (STDIN).
      *
-     * @return ProcessOutputStream
+     * @return InputStream
      */
-    public function getStdin(): ProcessOutputStream
+    public function getStdin(): InputStream
     {
         if (!$this->handle) {
             throw new StatusError("Process has not been started.");
@@ -237,9 +237,9 @@ class Process
     /**
      * Gets the process output stream (STDOUT).
      *
-     * @return ProcessInputStream
+     * @return OutputStream
      */
-    public function getStdout(): ProcessInputStream
+    public function getStdout(): OutputStream
     {
         if (!$this->handle) {
             throw new StatusError("Process has not been started.");
@@ -251,9 +251,9 @@ class Process
     /**
      * Gets the process error stream (STDERR).
      *
-     * @return ProcessInputStream
+     * @return OutputStream
      */
-    public function getStderr(): ProcessInputStream
+    public function getStderr(): OutputStream
     {
         if (!$this->handle) {
             throw new StatusError("Process has not been started.");

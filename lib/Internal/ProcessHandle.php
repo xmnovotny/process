@@ -2,8 +2,8 @@
 
 namespace Amp\Process\Internal;
 
-use Amp\Process\ProcessInputStream;
-use Amp\Process\ProcessOutputStream;
+use Amp\Process\OutputStream;
+use Amp\Process\InputStream;
 use Amp\Struct;
 use Concurrent\Deferred;
 
@@ -11,13 +11,13 @@ abstract class ProcessHandle
 {
     use Struct;
 
-    /** @var ProcessOutputStream */
+    /** @var InputStream */
     public $stdin;
 
-    /** @var ProcessInputStream */
+    /** @var OutputStream */
     public $stdout;
 
-    /** @var ProcessInputStream */
+    /** @var OutputStream */
     public $stderr;
 
     /** @var Deferred */
