@@ -11,7 +11,6 @@ use Amp\Process\Internal\ProcessRunner;
 use Amp\Process\Internal\ProcessStatus;
 use Amp\Process\OutputStream;
 use Amp\Process\ProcessException;
-use Concurrent\Deferred;
 use Concurrent\Task;
 
 /** @internal */
@@ -54,15 +53,25 @@ final class Runner implements ProcessRunner
         $pid = \rtrim(@\fgets($stream));
 
         /** @var Handle $handle */
-        /** @var Deferred[] $deferreds */
-        [$handle, $pipes, $deferreds] = $data;
+        [$handle, $pipes] = $data;
+
+        $closeCallback = static function () use ($handle) {
+            if (--$handle->openPipes === 0) {
+                self::free($handle);
+            }
+        };
+
+        $handle->stdin = new InputStream(new ResourceOutputStream($pipes[0]), $closeCallback);
+        $handle->stdout = new OutputStream(new ResourceInputStream($pipes[1]), $closeCallback);
+        $handle->stderr = new OutputStream(new ResourceInputStream($pipes[2]), $closeCallback);
 
         if (!$pid || !\is_numeric($pid)) {
             $error = new ProcessException("Could not determine PID");
-            /** @var $deferreds Deferred[] */
-            foreach ($deferreds as $deferred) {
-                $deferred->fail($error);
-            }
+
+            $handle->stdin->close();
+            $handle->stdout->close();
+            $handle->stderr->close();
+            $handle->startDeferred->fail($error);
 
             if ($handle->status < ProcessStatus::ENDED) {
                 $handle->status = ProcessStatus::ENDED;
@@ -73,17 +82,26 @@ final class Runner implements ProcessRunner
         }
 
         $handle->status = ProcessStatus::RUNNING;
+        $handle->startDeferred->resolve();
         $handle->pid = (int) $pid;
-
-        $deferreds[0]->resolve($pipes[0]);
-        $deferreds[1]->resolve($pipes[1]);
-        $deferreds[2]->resolve($pipes[2]);
 
         if ("" !== $exitCode = \rtrim(@\fgets($stream))) {
             $handle->status = ProcessStatus::ENDED;
-            $handle->joinDeferred->resolve((int) $exitCode);
 
-            self::free($handle);
+            if (\is_numeric($exitCode)) {
+                $handle->joinDeferred->resolve((int) $exitCode);
+            } else {
+                $handle->joinDeferred->fail(new ProcessException("Process (pid = {$handle->pid}) ended unexpectedly."));
+            }
+
+            Loop::cancel($handle->extraDataPipeWatcher);
+            $handle->extraDataPipeWatcher = null;
+
+            $handle->stdin->close();
+
+            if (--$handle->openPipes === 0) {
+                self::free($handle);
+            }
 
             return;
         }
@@ -160,36 +178,18 @@ final class Runner implements ProcessRunner
             throw new ProcessException("Could not get process status");
         }
 
-        $stdinDeferred = new Deferred;
-        $stdoutDeferred = new Deferred;
-        $stderrDeferred = new Deferred;
-
         $handle->extraDataPipe = $pipes[3];
 
         \stream_set_blocking($pipes[3], false);
 
-        $handle->extraDataPipeStartWatcher = Loop::onReadable($pipes[3], [self::class, 'onProcessStartExtraDataPipeReadable'], [$handle, [
-            new ResourceOutputStream($pipes[0]),
-            new ResourceInputStream($pipes[1]),
-            new ResourceInputStream($pipes[2]),
-        ], [
-            $stdinDeferred, $stdoutDeferred, $stderrDeferred,
-        ]]);
+        $handle->extraDataPipeStartWatcher = Loop::onReadable($pipes[3], [self::class, 'onProcessStartExtraDataPipeReadable'], [$handle, $pipes]);
 
         $handle->extraDataPipeWatcher = Loop::onReadable($pipes[3], [self::class, 'onProcessEndExtraDataPipeReadable'], $handle);
 
         Loop::unreference($handle->extraDataPipeWatcher);
         Loop::disable($handle->extraDataPipeWatcher);
 
-        $closeCallback = static function () use ($handle) {
-            if (--$handle->openPipes === 0) {
-                self::free($handle);
-            }
-        };
-
-        $handle->stdin = new InputStream(Task::await($stdinDeferred->awaitable()), $closeCallback);
-        $handle->stdout = new OutputStream(Task::await($stdoutDeferred->awaitable()), $closeCallback);
-        $handle->stderr = new OutputStream(Task::await($stderrDeferred->awaitable()), $closeCallback);
+        Task::await($handle->startDeferred->awaitable());
 
         return $handle;
     }

@@ -1,22 +1,22 @@
 <?php
 
-include dirname(__DIR__) . "/vendor/autoload.php";
+require dirname(__DIR__) . "/vendor/autoload.php";
 
-use Amp\ByteStream\Message;
+use Amp\Loop;
 use Amp\Process\Process;
+use function Amp\ByteStream\buffer;
 
 if (DIRECTORY_SEPARATOR === "\\") {
     echo "This example doesn't work on Windows." . PHP_EOL;
     exit(1);
 }
 
-$process = new Process('read; echo "$REPLY"');
+$process = new Process('cat');
 $process->start();
 
-/* send to stdin */
-$process->getStdin()->write("abc\n");
+$process->getStdin()->end("abc" . PHP_EOL);
 
-echo (new Message($process->getStdout()))->buffer();
+echo buffer($process->getStdout());
 
 $exitCode = $process->join();
-echo "Process exited with {$exitCode}.\n";
+echo "Process exited with {$exitCode}." . PHP_EOL;
