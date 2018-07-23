@@ -30,6 +30,9 @@ class Process
     /** @var ProcessHandle */
     private $handle;
 
+    /** @var bool */
+    private $starting = false;
+
     /**
      * @param   string|string[] $command Command to run.
      * @param   string|null     $cwd Working directory or use an empty string to use the working directory of the
@@ -89,7 +92,12 @@ class Process
             throw new StatusError("Process has already been started.");
         }
 
-        $this->handle = $this->processRunner->start($this->command, $this->cwd, $this->env, $this->options);
+        try {
+            $this->starting = true;
+            $this->handle = $this->processRunner->start($this->command, $this->cwd, $this->env, $this->options);
+        } finally {
+            $this->starting = false;
+        }
     }
 
     /**
@@ -208,7 +216,7 @@ class Process
      */
     public function isRunning(): bool
     {
-        return $this->handle && $this->handle->status !== ProcessStatus::ENDED;
+        return $this->starting || ($this->handle && $this->handle->status !== ProcessStatus::ENDED);
     }
 
     /**
