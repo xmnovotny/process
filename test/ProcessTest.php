@@ -79,7 +79,7 @@ class ProcessTest extends TestCase
     public function testGetWorkingDirectoryIsDefault(): void
     {
         $process = new Process(self::CMD_PROCESS);
-        $this->assertSame(getcwd(), $process->getWorkingDirectory());
+        $this->assertSame(\getcwd(), $process->getWorkingDirectory());
     }
 
     public function testGetWorkingDirectoryIsCustomized(): void
@@ -303,7 +303,7 @@ class ProcessTest extends TestCase
         /** @noinspection PhpUnhandledExceptionInspection */
         $process->getStdin()->write("exit " . $count);
 
-        $this->assertSame(str_repeat(".", $count), (new Message($process->getStdout()))->buffer());
+        $this->assertSame(\str_repeat(".", $count), (new Message($process->getStdout()))->buffer());
         $this->assertSame(0, $process->join());
     }
 }

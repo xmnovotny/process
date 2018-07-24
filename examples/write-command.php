@@ -1,8 +1,7 @@
 <?php
 
-require dirname(__DIR__) . "/vendor/autoload.php";
+require \dirname(__DIR__) . "/vendor/autoload.php";
 
-use Amp\Loop;
 use Amp\Process\Process;
 use function Amp\ByteStream\buffer;
 
