@@ -130,6 +130,12 @@ class Process
         }
 
         $this->processRunner->kill($this->handle);
+
+        try {
+            $this->processRunner->join($this->handle);
+        } catch (\Throwable $e) {
+            // ignore here
+        }
     }
 
     /**
