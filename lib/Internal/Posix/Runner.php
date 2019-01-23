@@ -24,6 +24,9 @@ final class Runner implements ProcessRunner
         ["pipe", "w"], // exit code pipe
     ];
 
+    /** @var string|null */
+    private static $fdPath;
+
     public static function onProcessEndExtraDataPipeReadable($watcher, $stream, Handle $handle)
     {
         Loop::cancel($watcher);
@@ -82,7 +85,7 @@ final class Runner implements ProcessRunner
         );
 
         $handle = new Handle;
-        $handle->proc = @\proc_open($command, self::FD_SPEC, $pipes, $cwd ?: null, $env ?: null, $options);
+        $handle->proc = @\proc_open($command, $this->generateFds(), $pipes, $cwd ?: null, $env ?: null, $options);
 
         if (!\is_resource($handle->proc)) {
             $message = "Could not start process";
@@ -125,6 +128,25 @@ final class Runner implements ProcessRunner
         Loop::disable($handle->extraDataPipeWatcher);
 
         return $handle;
+    }
+
+    private function generateFds(): array
+    {
+        if (self::$fdPath === null) {
+            self::$fdPath = \file_exists("/dev/fd") ? "/dev/fd" : "/proc/self/fd";
+        }
+
+        $fds = @\scandir(self::$fdPath, \SCANDIR_SORT_NONE);
+
+        if ($fds === false) {
+            throw new ProcessException("Unable to list open file descriptors");
+        }
+
+        $fds = \array_filter($fds, function (string $path): bool {
+            return $path !== "." && $path !== "..";
+        });
+
+        return \array_merge(self::FD_SPEC, \array_fill(4, \count($fds) - 4, ["file", "/dev/null", "r"]));
     }
 
     /** @inheritdoc */
