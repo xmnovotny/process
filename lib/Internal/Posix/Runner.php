@@ -24,7 +24,7 @@ final class Runner implements ProcessRunner
         ["pipe", "w"], // exit code pipe
     ];
 
-    /** @var string|null */
+    /** @var string|null|false (false for unreadable path) */
     private static $fdPath;
 
     public static function onProcessEndExtraDataPipeReadable($watcher, $stream, Handle $handle)
@@ -132,14 +132,31 @@ final class Runner implements ProcessRunner
 
     private function generateFds(): array
     {
+        if (self::$fdPath === false) {
+            return self::FD_SPEC;
+        }
         if (self::$fdPath === null) {
-            self::$fdPath = \file_exists("/dev/fd") ? "/dev/fd" : "/proc/self/fd";
+            self::$fdPath = @\file_exists("/dev/fd") ? "/dev/fd" : "/proc/self/fd";
+            if (@\file_exists("/dev/fd")) {
+                self::$fdPath = "/dev/fd";
+            }
+            elseif (@\file_exists("/proc/self/fd")) {
+                self::$fdPath = "/proc/self/fd";
+            } else {
+                self::$fdPath = false;
+                return self::FD_SPEC;
+            }
         }
 
-        $fdList = @\scandir(self::$fdPath, \SCANDIR_SORT_NONE);
-
+        try {
+            $fdList = @\scandir(self::$fdPath, \SCANDIR_SORT_NONE);
+        }
+        catch (\Throwable $e) {
+            $fdList = false;
+        }
         if ($fdList === false) {
-            throw new ProcessException("Unable to list open file descriptors");
+            self::$fdPath = false;
+            return self::FD_SPEC;
         }
 
         $fdList = \array_filter($fdList, function (string $path): bool {
